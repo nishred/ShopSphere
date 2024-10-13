@@ -108,3 +108,20 @@ export const logout = asyncHandler(async (req,res) => {
 })
 
 // zod throws an error of type ZodError
+
+
+export const getProfile = asyncHandler(async (req,res) => {
+
+
+  const {user} = req;
+
+  if(!user)
+    throw new CustomError("Please login",StatusCodes.BAD_REQUEST)
+
+
+  res.status(StatusCodes.ACCEPTED).json({
+     success : true,
+     data : user
+  })
+
+})
