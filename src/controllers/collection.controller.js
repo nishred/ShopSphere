@@ -39,11 +39,9 @@ export const updateCollection = asyncHandler(async (req,res) => {
         throw new CustomError("Collection id is invalid",StatusCodes.BAD_REQUEST)
      
      res.status(StatusCodes.ACCEPTED).json({
-
        success : true,
        message : "Collection updated successfully",
        data : updatedCollection
-
      })
 
 })

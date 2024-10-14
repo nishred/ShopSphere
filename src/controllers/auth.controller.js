@@ -10,7 +10,6 @@ import { StatusCodes } from "http-status-codes";
 export const cookieOptions = {
    expires : new Date(Date.now()) + 3 * 24 * 60 * 60 * 1000,
    httpOnly : true // makes the cookie read only on the client side, so now the user can see the cookie and he can't manipulate it
-
 }
 
 
@@ -43,10 +42,6 @@ export const signUp = asyncHandler(async (req,res) => {
          token,
          data : user
       })
-
-
-
-
 })
 
 
@@ -65,9 +60,7 @@ export const login = asyncHandler(async (req,res) => {
     if(!isPasswordValid)
       throw new CustomError("Password Incorrect",StatusCodes.BAD_REQUEST)
 
-
     user.password = undefined
-
 
     const token = user.getJwtToken()
 
@@ -83,15 +76,12 @@ export const login = asyncHandler(async (req,res) => {
 
     })
 
-
-
 })
 
 
 export const logout = asyncHandler(async (req,res) => {
 
    res.cookie("token",null,{
-
      expires : new Date(Date.now()),
      httpOnly : true
       
@@ -117,7 +107,6 @@ export const getProfile = asyncHandler(async (req,res) => {
 
   if(!user)
     throw new CustomError("Please login",StatusCodes.BAD_REQUEST)
-
 
   res.status(StatusCodes.ACCEPTED).json({
      success : true,
