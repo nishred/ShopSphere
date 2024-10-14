@@ -2,28 +2,31 @@ import mongoose from "mongoose";
 
 const couponSchema = new mongoose.Schema({
 
-   code : {
+      code : {
       type : String,
       required : ["true","Please provide a code"]
    },
 
-   discount : {
+      discount : {
      type : Number,
      default : 0
    },
 
-   active : {
+      active : {
      type : Boolean,
      default : true
+     }
+    },
+    {
 
-   }
+    timestamps : true
 
-},
-{
+   })
 
-timestamps : true
-
-})
+    
+   export default mongoose.model("Coupon",couponSchema)
 
 
-export default mongoose.model("Coupon",couponSchema)
+
+
+//TODO : Write a coupon controller to add a new coupon, edit it, delete it and disable it

@@ -11,8 +11,6 @@ const collectionSchema  = new mongoose.Schema({
         maxLength : [120, "Collection name should not be more than 120 chars"]
         
          }
-
-
 },
 {
 

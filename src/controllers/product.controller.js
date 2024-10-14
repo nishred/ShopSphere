@@ -1,12 +1,23 @@
 import Product from "../models/product.schema.js"
 import formidable from "formidable"
 import { s3FileUpload, s3deleteFile} from "../service/imageUpload.js"
-import Mongoose from "mongoose"
+import Mongoose, { Collection } from "mongoose"
 import asyncHandler from "../service/asyncHandler.js"
 import CustomError from "../utils/CustomError.js"
-import config from "../config/serverConfig.js"
+import config, { S3_BUCKET_NAME } from "../config/serverConfig.js"
 import fs from "fs"
+import { StatusCodes } from "http-status-codes"
+import { updateProductSchema } from "../validation/product.validator.js"
+import { cookieOptions } from "./auth.controller.js"
+import { rawListeners } from "process"
 
+
+// // Amazon s3:
+// You can think of it as a folder in the cloud, but with some added functionality and properties. Each object in an S3 bucket is uniquely identified by a key (the filename or path), and an S3 bucket can contain unlimited objects.
+
+// Think of s3 as a container for key-value pairs. where key(unique indentifier) is the name of the object and value is the data(file content) of the object.
+
+// In a web app where users upload profile pictures, the uploaded image is stored as an object in S3. The file’s key can be something like user123/profile_picture.png, where user123 is the user ID, and profile_picture.png is the file name.
 
 /**********************************************************
  * @ADD_PRODUCT
@@ -18,7 +29,6 @@ import fs from "fs"
  *********************************************************/
 
 // If the request has form data (like when sending data via HTML forms or with enctype="multipart/form-data"):
-
 // The data sent is typically not in JSON format, but rather as form fields.
 // You can use middleware like express.urlencoded() to parse this type of data.
 // For file uploads (e.g., with form-data), you would use a specialized library like formidable to handle the parsing of the request.
@@ -30,8 +40,6 @@ import fs from "fs"
 //   res.send('Form data received');
 // });
 
-
-
 // const formidable = require('formidable');
 
 // app.post('/upload', (req, res) => {
@@ -42,8 +50,6 @@ import fs from "fs"
 //     res.send('File upload complete');
 //   });
 // });
-
-
 
 export const addProduct = asyncHandler(async (req, res) => {
     const form = formidable({ multiples: true, keepExtensions: true });
@@ -96,6 +102,15 @@ export const addProduct = asyncHandler(async (req, res) => {
                     contentType: element.mimetype
                 })
 
+                // structure of the upload object 
+
+
+                // {
+                //     "ETag": "\"9c8af9a76df052144598c115dfdc2be7\"",
+                //     "Location": "https://my-bucket.s3.amazonaws.com/uploads/my-file.txt",
+                //     "Key": "uploads/my-file.txt",
+                //     "Bucket": "my-bucket"
+                //   }
                 // productId = 123abc456
                 // 1: products/123abc456/photo_1.png
                 // 2: products/123abc456/photo_2.png
@@ -122,9 +137,7 @@ export const addProduct = asyncHandler(async (req, res) => {
             success: true,
             product,
         })
-
-
-        
+    
     })
 })
 
@@ -206,7 +219,212 @@ export const deleteProduct = asyncHandler(async(req, res) => {
 })
 
 
-
-
 // work on the update controller
+
+export const updateProduct = asyncHandler(async (req,res) => {
+
+   const id = req.params.id
+
+
+   const form = new formidable({multiples : true,keepExtensions : true})
+
+   const product = await Product.findOne({_id : id})
+
+   if(!product)
+    throw new CustomError("The product doesn't exist",StatusCodes.BAD_REQUEST)
+
+
+   form.parse(req,async (err,fields,files) => {
+
+      if(files.length > 0)
+      {
+
+          let countImages = product.photos.length
+
+          const arr = []
+
+          for(let i=1;i<=countImages;i++)
+            arr.push(i)
+
+          const promiseArray =  Promsie.all(arr.map((index) => {
+             return s3deleteFile({
+                bucketName : S3_BUCKET_NAME,
+                key : `products/${product._id}/photo_${index}`
+             })
+          }))
+
+          await promiseArray
+
+      
+              const photos = await Promise.all(Object.keys(files).map(async (fileKey,idx) => {
+
+                    const value = files[fileKey]
+                     
+                     return new Promise((reject,resolve) => {
+
+                        try{
+
+
+                        fs.readFile(value.filepath,"utf-8",async (err,data) => {
+
+                            const upload = await s3FileUpload({
+                              bucketName : S3_BUCKET_NAME,
+                              key : `products/${product._id}/photo_${idx+1}`,
+                              body : data,
+                              contentType : value.mimetype
+
+                            })
+
+                            resolve({
+                             secure_url  : upload.Location
+                            })
+
+
+                        })
+
+                    }
+                    catch(error)
+                    {
+
+                        reject(error)
+
+                    }
+                         
+
+                     })
+
+               }))
+
+
+               
+           const validatedProductFields = updateProductSchema.parse(fields)
+
+
+          const collectionId = validatedProductFields.collectionId
+
+
+          if(collectionId)
+          {
+               const isValid = await Collection.findOne({_id : collectionId})
+               if(!isValid)
+                throw new CustomError("Collection id is invalid",StatusCodes.BAD_REQUEST)
+          }
+
+
+          const updatedProduct = await Product.findByIdAndUpdate(product._id,{$set : {...validatedProductFields,photos}},{new : true})
+
+
+           res.status(StatusCodes.ACCEPTED).json({
+                success : true,
+                message : "Product has been updated successfully",
+                data : updatedProduct
+
+           })
+
+
+        }
+       else {
+
+   
+        const validatedProductFields = updateProductSchema.parse(fields)
+
+        const collectionId = validatedProductFields.collectionId
+
+
+        if(collectionId)
+        {
+
+            const isCollectionIdValid = await Collection.findOne({_id : collectionId})
+
+            if(!isCollectionIdValid)
+                throw new CustomError("Collection Id is invalid",StatusCodes.BAD_REQUEST)
+
+        }
+
+
+        const updatedProduct = await Product.findByIdAndUpdate(id,{$set : {...validatedProductFields}},{new : true})
+
+
+        res.status(StatusCodes.ACCEPTED).json({
+
+           success : true,
+           message : "The Product has been updated successfully",
+           data : updatedProduct
+
+        })
+
+
+
+       }
+
+
+   })
+
+
+})
+
+
+
+// Mental Model for Promise.all()
+// Think of Promise.all() like a chef waiting for all dishes in the kitchen to finish cooking before serving the meal. If any one of the dishes burns or fails, the chef stops and doesn't serve any. This function is ideal when:
+
+// Multiple promises need to be resolved (like preparing different dishes), and...
+// You need all of them to either succeed or know if any one of them failed.
+// How Promise.all() Works
+// Promise.all() takes an array of promises as input.
+// It waits for all of them to resolve.
+// If all promises resolve successfully, it returns an array with the results of each promise (in the same order as the promises passed in).
+// If any promise fails (rejects), it immediately rejects with the error of the failed promise and discards all others.
+// When to Use Promise.all()
+// 1. Fetching Multiple APIs Simultaneously
+// Imagine you're building a weather dashboard that fetches data from different sources (e.g., temperature, humidity, wind speed). All these requests can happen simultaneously, and you don't want to display the dashboard until all the data is available.
+
+// async function fetchWeatherData() {
+//     const tempPromise = fetch('https://api.weather.com/temperature');
+//     const humidityPromise = fetch('https://api.weather.com/humidity');
+//     const windSpeedPromise = fetch('https://api.weather.com/windSpeed');
+    
+//     try {
+//         const [temperature, humidity, windSpeed] = await Promise.all([tempPromise, humidityPromise, windSpeedPromise]);
+//         console.log('Weather Data:', { temperature, humidity, windSpeed });
+//     } catch (error) {
+//         console.error('Failed to fetch weather data:', error);
+//     }
+// }
+// Mental Model: You’re asking three friends to get you information from different sources. You only proceed when all of them come back with their results.
+
+// 2. Batch Processing of Files
+// Suppose you have a list of files to process, and each file requires some asynchronous operation (like reading from disk). You want to process them all at the same time and handle the result when everything is done.
+
+
+// async function processFiles(fileList) {
+//     const readPromises = fileList.map(file => readFileAsync(file));
+    
+//     try {
+//         const fileContents = await Promise.all(readPromises);
+//         console.log('Processed Files:', fileContents);
+//     } catch (error) {
+//         console.error('Error processing files:', error);
+//     }
+// }
+// Mental Model: You’ve handed out files to several team members to process. The project won’t move forward until everyone has completed their work. If any one team member fails, the project halts.
+
+
+
+
+// Why Use Promise.all()?
+
+// Concurrency: All promises are executed at the same time. You don’t wait for one to finish before starting the next.
+
+// Failure Handling: If one promise fails, Promise.all() immediately rejects. It’s useful when you depend on all promises succeeding.
+
+// When to Avoid Promise.all()
+// Independent results: If you don’t need all promises to succeed (e.g., one can fail without breaking the app), consider using Promise.allSettled().
+// Dependent promises: If each promise depends on the result of the previous one, Promise.all() isn’t appropriate (you’d want to chain them instead).
+// Conclusion
+// Use Promise.all() when you need to wait for multiple asynchronous operations and proceed only if all of them succeed.
+// It’s perfect when all promises can run in parallel and their success is critical for the next step.
+
+
+
 

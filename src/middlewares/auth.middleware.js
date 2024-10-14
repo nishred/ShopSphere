@@ -24,7 +24,7 @@ export const isLoggedIn = asyncHandler(async (req,res,next) => {
 
         const decodedJwtPayload =  jwt.verify(token,JWT_SECRET)
 
-        const user = await User.findOne({_id : decodedJwtPayload._id},{name : 1,email : 1,role : 1})
+        const user = await User.findOne({_id : decodedJwtPayload._id}).select("name email role")
 
         req.user = user
 
