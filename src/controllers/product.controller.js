@@ -45,11 +45,6 @@ import fs from "fs"
 
 
 
-
-
-
-
-
 export const addProduct = asyncHandler(async (req, res) => {
     const form = formidable({ multiples: true, keepExtensions: true });
 
@@ -209,3 +204,9 @@ export const deleteProduct = asyncHandler(async(req, res) => {
         message: "Product has been deleted successfully"
     })
 })
+
+
+
+
+// work on the update controller
+
